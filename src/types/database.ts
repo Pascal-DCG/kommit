@@ -89,9 +89,54 @@ export interface Database {
         };
       };
       listings_archive: {
-        Row: Database["public"]["Tables"]["listings"]["Row"];
-        Insert: Database["public"]["Tables"]["listings"]["Insert"];
-        Update: Database["public"]["Tables"]["listings"]["Update"];
+        Row: {
+          id: string;
+          user_id: string;
+          type: ListingType;
+          origin_label: string;
+          origin_city: string;
+          origin_lat: number;
+          origin_lng: number;
+          destination_label: string;
+          destination_city: string;
+          destination_lat: number;
+          destination_lng: number;
+          departure_at: string;
+          seats: number;
+          notes: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          user_id: string;
+          type: ListingType;
+          origin_label: string;
+          origin_city: string;
+          origin_lat: number;
+          origin_lng: number;
+          destination_label: string;
+          destination_city: string;
+          destination_lat: number;
+          destination_lng: number;
+          departure_at: string;
+          seats: number;
+          notes?: string | null;
+        };
+        Update: {
+          type?: ListingType;
+          origin_label?: string;
+          origin_city?: string;
+          origin_lat?: number;
+          origin_lng?: number;
+          destination_label?: string;
+          destination_city?: string;
+          destination_lat?: number;
+          destination_lng?: number;
+          departure_at?: string;
+          seats?: number;
+          notes?: string | null;
+        };
       };
       push_subscriptions: {
         Row: {
