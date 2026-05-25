@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 240" width="240" height="240" role="img" aria-label="kommit app icon">
+  <title>kommit</title>
+  <rect x="0" y="0" width="240" height="240" rx="56" fill="#FF8A4C"/>
+  <text x="32" y="178" font-family="'DM Sans', 'Inter', system-ui, sans-serif" font-weight="700" font-size="170" letter-spacing="-3" fill="#FFFBF5">k</text>
+  <g transform="translate(150, 110)">
+    <path d="M 24,0 C 10.7,0 0,10.7 0,24 C 0,37.5 12,49 24,65 C 36,49 48,37.5 48,24 C 48,10.7 37.3,0 24,0 Z" fill="#FFFBF5"/>
+    <circle cx="24" cy="24" r="9" fill="#FF8A4C"/>
+  </g>
+</svg>

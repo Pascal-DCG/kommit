@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 180" width="600" height="180" role="img" aria-label="kommit">
+  <title>kommit</title>
+  <text x="10" y="140" font-family="'DM Sans', 'Inter', system-ui, 'Helvetica Neue', sans-serif" font-weight="700" font-size="140" letter-spacing="-6" fill="#1A1A2E">kommit</text>
+  <g transform="translate(470, 60)">
+    <path d="M 30,0 C 13.4,0 0,13.4 0,30 C 0,47 15,60 30,80 C 45,60 60,47 60,30 C 60,13.4 46.6,0 30,0 Z" fill="#FF8A4C"/>
+    <circle cx="30" cy="30" r="11.5" fill="#FFFBF5"/>
+  </g>
+</svg>
