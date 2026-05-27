@@ -6,6 +6,7 @@ import { MatchSheet } from "@/components/listing/match-sheet";
 import { useAuthContext } from "@/hooks/use-auth-context";
 import { useListings } from "@/hooks/use-listings";
 import { useMatches, type MatchResult } from "@/hooks/use-matches";
+import { supabase } from "@/lib/supabase";
 import { ROUTES } from "@/lib/constants";
 
 export default function CreatePage() {
@@ -40,6 +41,9 @@ export default function CreatePage() {
     const matches = await findMatches(created.id);
 
     if (matches.length > 0) {
+      supabase.functions.invoke("send-push", {
+        body: { listing_id: created.id },
+      }).catch(() => {});
       setMatchResults(matches);
       setShowMatches(true);
     } else {
