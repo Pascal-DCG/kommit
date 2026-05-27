@@ -12,6 +12,8 @@ import DetailPage from "@/pages/detail";
 import ProfilePage from "@/pages/profile";
 import SettingsPage from "@/pages/settings";
 import AdminPage from "@/pages/admin";
+import DatenschutzPage from "@/pages/datenschutz";
+import ImpressumPage from "@/pages/impressum";
 import { AdminGuard } from "@/components/admin/admin-guard";
 import NotFoundPage from "@/pages/not-found";
 
@@ -96,6 +98,8 @@ function AppContent() {
           </AuthGuard>
         }
       />
+      <Route path="/datenschutz" element={<DatenschutzPage />} />
+      <Route path="/impressum" element={<ImpressumPage />} />
       <Route path="*" element={<NotFoundPage />} />
     </Routes>
   );
