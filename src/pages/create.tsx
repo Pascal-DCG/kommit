@@ -1,19 +1,25 @@
+import { useState } from "react";
 import { useNavigate } from "react-router";
 import { AppShell } from "@/components/layout/app-shell";
 import { ListingForm, type ListingFormData } from "@/components/listing/listing-form";
+import { MatchSheet } from "@/components/listing/match-sheet";
 import { useAuthContext } from "@/hooks/use-auth-context";
 import { useListings } from "@/hooks/use-listings";
+import { useMatches, type MatchResult } from "@/hooks/use-matches";
 import { ROUTES } from "@/lib/constants";
 
 export default function CreatePage() {
   const navigate = useNavigate();
   const { user } = useAuthContext();
   const { createListing } = useListings();
+  const { findMatches } = useMatches();
+  const [matchResults, setMatchResults] = useState<MatchResult[]>([]);
+  const [showMatches, setShowMatches] = useState(false);
 
   const handleSubmit = async (data: ListingFormData) => {
     if (!user) return;
 
-    await createListing(
+    const created = await createListing(
       {
         type: data.type,
         origin_label: data.origin.label,
@@ -31,7 +37,14 @@ export default function CreatePage() {
       user.id,
     );
 
-    navigate(ROUTES.HOME);
+    const matches = await findMatches(created.id);
+
+    if (matches.length > 0) {
+      setMatchResults(matches);
+      setShowMatches(true);
+    } else {
+      navigate(ROUTES.HOME);
+    }
   };
 
   return (
@@ -40,6 +53,15 @@ export default function CreatePage() {
         <h1 className="text-2xl font-bold">Neuer Eintrag</h1>
         <ListingForm onSubmit={handleSubmit} />
       </div>
+
+      <MatchSheet
+        matches={matchResults}
+        open={showMatches}
+        onClose={() => {
+          setShowMatches(false);
+          navigate(ROUTES.HOME);
+        }}
+      />
     </AppShell>
   );
 }

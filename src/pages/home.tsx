@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import { AppShell } from "@/components/layout/app-shell";
 import { ListingList } from "@/components/listing/listing-list";
+import { RealtimeBanner } from "@/components/listing/realtime-banner";
 import { useListings } from "@/hooks/use-listings";
 import { useProfiles } from "@/hooks/use-profiles";
 import type { ListingType } from "@/types";
@@ -15,7 +16,8 @@ const FILTERS: { label: string; value: TypeFilter }[] = [
 
 export default function HomePage() {
   const [typeFilter, setTypeFilter] = useState<TypeFilter>("alle");
-  const { groupedByCity, listings, loading } = useListings({ typeFilter });
+  const { groupedByCity, listings, loading, newCount, showPending } =
+    useListings({ typeFilter });
 
   const userIds = useMemo(
     () => [...new Set(listings.map((l) => l.user_id))],
@@ -41,6 +43,8 @@ export default function HomePage() {
             </button>
           ))}
         </div>
+
+        <RealtimeBanner count={newCount} onShow={showPending} />
 
         {loading ? (
           <div className="flex justify-center py-16">
