@@ -4,6 +4,9 @@ import { AuthGuard } from "@/components/auth/auth-guard";
 import { ROUTES } from "@/lib/constants";
 import HomePage from "@/pages/home";
 import LoginPage from "@/pages/login";
+import CreatePage from "@/pages/create";
+import EditPage from "@/pages/edit";
+import DetailPage from "@/pages/detail";
 import NotFoundPage from "@/pages/not-found";
 
 export default function App() {
@@ -17,6 +20,30 @@ export default function App() {
             element={
               <AuthGuard>
                 <HomePage />
+              </AuthGuard>
+            }
+          />
+          <Route
+            path={ROUTES.CREATE}
+            element={
+              <AuthGuard>
+                <CreatePage />
+              </AuthGuard>
+            }
+          />
+          <Route
+            path={ROUTES.EDIT}
+            element={
+              <AuthGuard>
+                <EditPage />
+              </AuthGuard>
+            }
+          />
+          <Route
+            path={ROUTES.DETAIL}
+            element={
+              <AuthGuard>
+                <DetailPage />
               </AuthGuard>
             }
           />
