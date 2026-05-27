@@ -11,6 +11,8 @@ import EditPage from "@/pages/edit";
 import DetailPage from "@/pages/detail";
 import ProfilePage from "@/pages/profile";
 import SettingsPage from "@/pages/settings";
+import AdminPage from "@/pages/admin";
+import { AdminGuard } from "@/components/admin/admin-guard";
 import NotFoundPage from "@/pages/not-found";
 
 const ONBOARDING_KEY = "kommit_onboarding_done";
@@ -81,6 +83,16 @@ function AppContent() {
         element={
           <AuthGuard>
             <SettingsPage />
+          </AuthGuard>
+        }
+      />
+      <Route
+        path={ROUTES.ADMIN}
+        element={
+          <AuthGuard>
+            <AdminGuard>
+              <AdminPage />
+            </AdminGuard>
           </AuthGuard>
         }
       />
