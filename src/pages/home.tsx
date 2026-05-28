@@ -1,15 +1,59 @@
-import { APP_NAME } from "@/lib/constants";
+import { useMemo, useState } from "react";
+import { AppShell } from "@/components/layout/app-shell";
+import { ListingList } from "@/components/listing/listing-list";
+import { RealtimeBanner } from "@/components/listing/realtime-banner";
+import { useListings } from "@/hooks/use-listings";
+import { useProfiles } from "@/hooks/use-profiles";
+import type { ListingType } from "@/types";
+
+type TypeFilter = ListingType | "alle";
+
+const FILTERS: { label: string; value: TypeFilter }[] = [
+  { label: "Alle", value: "alle" },
+  { label: "Angebote", value: "angebot" },
+  { label: "Anfragen", value: "anfrage" },
+];
 
 export default function HomePage() {
+  const [typeFilter, setTypeFilter] = useState<TypeFilter>("alle");
+  const { groupedByCity, listings, loading, newCount, showPending } =
+    useListings({ typeFilter });
+
+  const userIds = useMemo(
+    () => [...new Set(listings.map((l) => l.user_id))],
+    [listings],
+  );
+  const profiles = useProfiles(userIds);
+
   return (
-    <div className="flex min-h-screen flex-col items-center justify-center gap-6 p-8">
-      <div className="flex items-center gap-3">
-        <img src="/kommit_icon.svg" alt="" className="h-12 w-12" />
-        <h1 className="text-4xl font-bold tracking-tight">{APP_NAME}</h1>
+    <AppShell showFab>
+      <div className="space-y-4">
+        <div className="flex gap-2 rounded-2xl bg-muted p-1">
+          {FILTERS.map((f) => (
+            <button
+              key={f.value}
+              className={`flex-1 rounded-xl px-3 py-2 text-sm font-medium transition-colors ${
+                typeFilter === f.value
+                  ? "bg-card text-foreground shadow-sm"
+                  : "text-muted-foreground hover:text-foreground"
+              }`}
+              onClick={() => setTypeFilter(f.value)}
+            >
+              {f.label}
+            </button>
+          ))}
+        </div>
+
+        <RealtimeBanner count={newCount} onShow={showPending} />
+
+        {loading ? (
+          <div className="flex justify-center py-16">
+            <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
+          </div>
+        ) : (
+          <ListingList groupedByCity={groupedByCity} profiles={profiles} />
+        )}
       </div>
-      <p className="text-muted-foreground text-lg">
-        Mitfahrgelegenheit organisieren
-      </p>
-    </div>
+    </AppShell>
   );
 }
