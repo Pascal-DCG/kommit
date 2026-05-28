@@ -1,6 +1,13 @@
 import { useCallback, useEffect, useState } from "react";
 import type { Session, User } from "@supabase/supabase-js";
 import { supabase } from "@/lib/supabase";
+import {
+  DEMO_PROFILE,
+  DEMO_SESSION,
+  DEMO_USER,
+  disableDemoMode,
+  isDemoMode,
+} from "@/lib/demo";
 import type { Profile } from "@/types";
 
 interface AuthState {
@@ -12,13 +19,25 @@ interface AuthState {
 }
 
 export function useAuth() {
-  const [state, setState] = useState<AuthState>({
-    session: null,
-    user: null,
-    profile: null,
-    loading: true,
-    isNewUser: false,
-  });
+  const demo = isDemoMode();
+
+  const [state, setState] = useState<AuthState>(() =>
+    demo
+      ? {
+          session: DEMO_SESSION,
+          user: DEMO_USER,
+          profile: DEMO_PROFILE,
+          loading: false,
+          isNewUser: false,
+        }
+      : {
+          session: null,
+          user: null,
+          profile: null,
+          loading: true,
+          isNewUser: false,
+        },
+  );
 
   const fetchProfile = useCallback(async (userId: string) => {
     const { data } = await supabase
@@ -30,6 +49,7 @@ export function useAuth() {
   }, []);
 
   useEffect(() => {
+    if (demo) return;
     supabase.auth.getSession().then(async ({ data: { session } }) => {
       if (session?.user) {
         const profile = await fetchProfile(session.user.id);
@@ -69,7 +89,7 @@ export function useAuth() {
     });
 
     return () => subscription.unsubscribe();
-  }, [fetchProfile]);
+  }, [fetchProfile, demo]);
 
   const sendOtp = useCallback(async (phone: string) => {
     const { data, error } = await supabase.functions.invoke("send-otp", {
@@ -117,8 +137,13 @@ export function useAuth() {
   );
 
   const signOut = useCallback(async () => {
+    if (demo) {
+      disableDemoMode();
+      window.location.reload();
+      return;
+    }
     await supabase.auth.signOut();
-  }, []);
+  }, [demo]);
 
   return {
     ...state,

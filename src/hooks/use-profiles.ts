@@ -1,11 +1,15 @@
 import { useCallback, useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
+import { DEMO_PROFILES, isDemoMode } from "@/lib/demo";
 import type { Profile } from "@/types";
 
 export function useProfiles(userIds: string[]) {
-  const [profiles, setProfiles] = useState<Record<string, Profile>>({});
+  const [profiles, setProfiles] = useState<Record<string, Profile>>(() =>
+    isDemoMode() ? { ...DEMO_PROFILES } : {},
+  );
 
   const fetchProfiles = useCallback(async (ids: string[]) => {
+    if (isDemoMode()) return;
     const missing = ids.filter((id) => !profiles[id]);
     if (missing.length === 0) return;
 

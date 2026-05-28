@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
+import { isDemoMode } from "@/lib/demo";
 
 interface UsePushOptions {
   userId: string | undefined;
@@ -11,6 +12,10 @@ export function usePush({ userId }: UsePushOptions) {
   const [permission, setPermission] = useState<NotificationPermission>("default");
 
   useEffect(() => {
+    if (isDemoMode()) {
+      setIsSupported(false);
+      return;
+    }
     const supported =
       "serviceWorker" in navigator &&
       "PushManager" in window &&
