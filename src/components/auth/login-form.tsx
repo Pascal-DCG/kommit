@@ -2,6 +2,7 @@ import { useState, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { enableDemoMode } from "@/lib/demo";
 
 interface LoginFormProps {
   onSendOtp: (phone: string) => Promise<{ request_id: string }>;
@@ -132,6 +133,19 @@ export function LoginForm({ onSendOtp, onVerifyOtp }: LoginFormProps) {
           </Button>
         </form>
       )}
+
+      <div className="border-t pt-4 text-center">
+        <button
+          type="button"
+          className="text-sm text-muted-foreground underline-offset-4 hover:text-foreground hover:underline"
+          onClick={() => {
+            enableDemoMode();
+            window.location.reload();
+          }}
+        >
+          Demo ohne Login →
+        </button>
+      </div>
     </div>
   );
 }
