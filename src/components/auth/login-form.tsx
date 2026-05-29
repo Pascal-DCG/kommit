@@ -38,6 +38,11 @@ export function LoginForm({ onSendOtp, onVerifyOtp }: LoginFormProps) {
     }
   };
 
+  const handleDemo = () => {
+    enableDemoMode();
+    window.location.reload();
+  };
+
   const handleVerifyOtp = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
@@ -134,17 +139,18 @@ export function LoginForm({ onSendOtp, onVerifyOtp }: LoginFormProps) {
         </form>
       )}
 
-      <div className="border-t pt-4 text-center">
-        <button
+      <div className="space-y-2 border-t pt-4 text-center">
+        <Button
           type="button"
-          className="text-sm text-muted-foreground underline-offset-4 hover:text-foreground hover:underline"
-          onClick={() => {
-            enableDemoMode();
-            window.location.reload();
-          }}
+          variant="outline"
+          className="w-full"
+          onClick={handleDemo}
         >
-          Demo ohne Login →
-        </button>
+          Ohne Login ausprobieren →
+        </Button>
+        <p className="text-xs text-muted-foreground">
+          Zum Reinschnuppern — ganz ohne Telefonnummer.
+        </p>
       </div>
     </div>
   );

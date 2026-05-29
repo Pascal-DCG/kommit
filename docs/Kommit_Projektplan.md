@@ -122,6 +122,31 @@ Beim allerersten Login (neuer Account):
 
 Bei bestehenden Accounts: direkt zur Liste.
 
+### Demo-Modus (Login umgehen)
+
+**Zweck:** Die App soll sich ohne Supabase-Setup, Telefonnummer oder Telegram-Code
+durchklicken lassen — etwa für Vercel-Preview-Links, schnelle UI-Reviews oder eine
+Onboarding-Demo.
+
+**Aktivierung:** Button „Ohne Login ausprobieren" am unteren Rand der Login-Seite.
+Er setzt das Flag `localStorage["kommit_demo"] = "1"` und lädt die App neu. Beendet
+wird der Modus über den „Beenden"-Link im Demo-Banner (löscht das Flag + Reload).
+
+**Vorschlag zur Umsetzung / Architektur:**
+- Zentrales, client-seitiges localStorage-Flag in `src/lib/demo.ts`
+  (`isDemoMode()` / `enableDemoMode()` / `disableDemoMode()`).
+- `useAuth` (`src/hooks/use-auth.ts`) initialisiert bei aktivem Demo-Modus direkt mit
+  einer Mock-Session (`DEMO_SESSION` / `DEMO_USER` / `DEMO_PROFILE`) statt Supabase
+  abzufragen; `signOut()` ruft im Demo-Fall `disableDemoMode()`.
+- Daten-Hooks (z. B. `useListings`) liefern bei aktivem Demo-Modus die Mock-Daten
+  (`DEMO_LISTINGS`, `DEMO_PROFILES`) statt einer DB-Query.
+- Der Demo-User hat die Rolle `admin`, damit auch der Admin-Bereich erkundbar ist.
+- Die App-Shell zeigt ein Hinweis-Banner: „Demo-Modus — Änderungen werden nicht
+  gespeichert" mit „Beenden"-Button.
+
+**Grenzen:** Keine Persistenz — Änderungen verschwinden beim Reload. Es werden keine
+echten OTP-, Telegram- oder Push-Aufrufe ausgeführt.
+
 ---
 
 ## 5. Datenmodell
@@ -517,6 +542,7 @@ In den Einstellungen kann der User „Auch via Telegram benachrichtigen" aktivie
 - Step 2 (gleicher Screen): 6-stelliges OTP-Feld mit `autocomplete="one-time-code"` (iOS-Suggest)
 - Mini-Text: „Wir schicken dir den Code via Telegram"
 - Bei neuem User: zusätzliches Profilformular (Vor- + Nachname)
+- Am unteren Rand: Button „Ohne Login ausprobieren →" als Einstieg in den Demo-Modus (siehe Abschnitt 4)
 
 ### 10.2 Liste (Hauptscreen)
 - Header: Logo links, Avatar des Users rechts (→ Profil)
