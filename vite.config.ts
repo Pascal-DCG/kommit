@@ -9,6 +9,11 @@ export default defineConfig({
     VitePWA({
       registerType: "autoUpdate",
       includeAssets: ["favicon.ico", "kommit_icon.svg", "kommit_wordmark.svg"],
+      // Push-Handler aus public/sw-push.js in den einen generierten SW laden,
+      // statt einen zweiten Service Worker manuell zu registrieren.
+      workbox: {
+        importScripts: ["sw-push.js"],
+      },
       manifest: {
         name: "Kommit — Mitfahrgelegenheit",
         short_name: "Kommit",

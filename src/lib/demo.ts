@@ -98,6 +98,18 @@ const OTHER_PROFILES: Profile[] = [
     created_at: daysAgo(15),
     updated_at: daysAgo(3),
   },
+  {
+    id: "demo-user-00000000-0000-0000-0000-000000000005",
+    first_name: "Jonas",
+    last_name: "Becker",
+    phone: "+491638889900",
+    show_phone: true,
+    telegram_chat_id: null,
+    role: "user",
+    avatar_color: "#A855F7",
+    created_at: daysAgo(30),
+    updated_at: daysAgo(4),
+  },
 ];
 
 export const DEMO_PROFILES: Record<string, Profile> = {
