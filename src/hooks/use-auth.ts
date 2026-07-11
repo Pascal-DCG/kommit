@@ -86,17 +86,21 @@ export function useAuth() {
 
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, session) => {
+    } = supabase.auth.onAuthStateChange((event, session) => {
       // WICHTIG: keine awaitenden supabase-Aufrufe direkt im Callback —
       // der Auth-Lock wird sonst nicht freigegeben und supabase.from(...)
       // deadlockt. Session sofort (synchron) setzen, Profil verzoegert laden.
       const user = session?.user;
       if (user) {
+        // Bei frischem Login loading true halten, bis das Profil geladen ist —
+        // sonst wuerde ein neuer User (isNewUser noch nicht bekannt) kurz zur
+        // Liste navigiert statt zum Profil-Setup. Bei Token-Refresh kein Flackern.
+        const freshLogin = event === "SIGNED_IN" || event === "INITIAL_SESSION";
         setState((s) => ({
           ...s,
           session,
           user,
-          loading: false,
+          loading: freshLogin ? true : s.loading,
         }));
         setTimeout(() => {
           fetchProfile(user.id).then((profile) => {
@@ -104,6 +108,7 @@ export function useAuth() {
               ...s,
               profile,
               isNewUser: !profile?.first_name,
+              loading: false,
             }));
           });
         }, 0);
