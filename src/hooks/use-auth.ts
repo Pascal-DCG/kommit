@@ -18,6 +18,25 @@ interface AuthState {
   isNewUser: boolean;
 }
 
+// supabase-js verpackt Edge-Function-Fehler in eine generische Meldung
+// ("Edge Function returned a non-2xx status code"). Der echte Fehlertext
+// steckt im Response-Body von error.context — den holen wir hier raus.
+async function edgeErrorMessage(
+  error: unknown,
+  fallback: string,
+): Promise<string> {
+  const ctx = (error as { context?: Response } | null)?.context;
+  if (ctx && typeof ctx.clone === "function") {
+    try {
+      const body = await ctx.clone().json();
+      if (body?.error) return String(body.error);
+    } catch {
+      // Body ist kein JSON — Fallback auf die generische Meldung
+    }
+  }
+  return (error as Error)?.message || fallback;
+}
+
 export function useAuth() {
   const demo = isDemoMode();
 
@@ -67,16 +86,32 @@ export function useAuth() {
 
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange(async (_event, session) => {
-      if (session?.user) {
-        const profile = await fetchProfile(session.user.id);
-        setState({
+    } = supabase.auth.onAuthStateChange((event, session) => {
+      // WICHTIG: keine awaitenden supabase-Aufrufe direkt im Callback —
+      // der Auth-Lock wird sonst nicht freigegeben und supabase.from(...)
+      // deadlockt. Session sofort (synchron) setzen, Profil verzoegert laden.
+      const user = session?.user;
+      if (user) {
+        // Bei frischem Login loading true halten, bis das Profil geladen ist —
+        // sonst wuerde ein neuer User (isNewUser noch nicht bekannt) kurz zur
+        // Liste navigiert statt zum Profil-Setup. Bei Token-Refresh kein Flackern.
+        const freshLogin = event === "SIGNED_IN" || event === "INITIAL_SESSION";
+        setState((s) => ({
+          ...s,
           session,
-          user: session.user,
-          profile,
-          loading: false,
-          isNewUser: !profile?.first_name,
-        });
+          user,
+          loading: freshLogin ? true : s.loading,
+        }));
+        setTimeout(() => {
+          fetchProfile(user.id).then((profile) => {
+            setState((s) => ({
+              ...s,
+              profile,
+              isNewUser: !profile?.first_name,
+              loading: false,
+            }));
+          });
+        }, 0);
       } else {
         setState({
           session: null,
@@ -95,7 +130,11 @@ export function useAuth() {
     const { data, error } = await supabase.functions.invoke("send-otp", {
       body: { phone },
     });
-    if (error) throw new Error(error.message);
+    if (error) {
+      throw new Error(
+        await edgeErrorMessage(error, "Code konnte nicht gesendet werden."),
+      );
+    }
     return data as { request_id: string };
   }, []);
 
@@ -104,7 +143,11 @@ export function useAuth() {
       const { data, error } = await supabase.functions.invoke("verify-otp", {
         body: { phone, code, request_id: requestId },
       });
-      if (error) throw new Error(error.message);
+      if (error) {
+        throw new Error(
+          await edgeErrorMessage(error, "Hm, der Code passt nicht. Nochmal?"),
+        );
+      }
 
       if (data.session) {
         await supabase.auth.setSession({
@@ -136,6 +179,37 @@ export function useAuth() {
     [state.user, fetchProfile],
   );
 
+  const updateProfile = useCallback(
+    async (updates: {
+      first_name?: string;
+      last_name?: string;
+      show_phone?: boolean;
+      avatar_url?: string | null;
+      avatar_color?: string;
+    }) => {
+      // Optimistisch: lokalen State sofort aktualisieren, damit die UI
+      // (z.B. Toggles) unmittelbar umschaltet.
+      setState((s) =>
+        s.profile ? { ...s, profile: { ...s.profile, ...updates } } : s,
+      );
+
+      if (demo) return; // Demo: nur lokal, keine DB-Schreibung
+
+      if (!state.user) throw new Error("Nicht eingeloggt.");
+      const { error } = await supabase
+        .from("profiles")
+        .update(updates)
+        .eq("id", state.user.id);
+      if (error) {
+        // Rollback der optimistischen Aenderung
+        const profile = await fetchProfile(state.user.id);
+        setState((s) => ({ ...s, profile }));
+        throw error;
+      }
+    },
+    [demo, state.user, fetchProfile],
+  );
+
   const signOut = useCallback(async () => {
     if (demo) {
       disableDemoMode();
@@ -150,6 +224,7 @@ export function useAuth() {
     sendOtp,
     verifyOtp,
     completeProfile,
+    updateProfile,
     signOut,
     isAuthenticated: !!state.session,
   };

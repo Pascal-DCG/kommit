@@ -14,6 +14,7 @@ export interface Database {
           telegram_chat_id: number | null;
           role: UserRole;
           avatar_color: string;
+          avatar_url: string | null;
           created_at: string;
           updated_at: string;
         };
@@ -26,6 +27,7 @@ export interface Database {
           telegram_chat_id?: number | null;
           role?: UserRole;
           avatar_color: string;
+          avatar_url?: string | null;
           created_at?: string;
           updated_at?: string;
         };
@@ -36,6 +38,7 @@ export interface Database {
           telegram_chat_id?: number | null;
           role?: UserRole;
           avatar_color?: string;
+          avatar_url?: string | null;
         };
       };
       listings: {

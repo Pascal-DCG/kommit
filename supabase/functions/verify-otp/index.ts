@@ -1,113 +1,146 @@
-import { serve } from "https://deno.land/std@0.208.0/http/server.ts";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
-import { corsHeaders } from "../_shared/cors.ts";
+// supabase/functions/verify-otp/index.ts
+import { createClient } from "jsr:@supabase/supabase-js@2";
 
-const TELEGRAM_VERIFY_URL = "https://gatewayapi.telegram.org/checkVerificationStatus";
+const corsHeaders = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers":
+    "authorization, x-client-info, apikey, content-type",
+};
 
-serve(async (req) => {
+const TELEGRAM_VERIFY_URL =
+  "https://gatewayapi.telegram.org/checkVerificationStatus";
+const EMAIL_DOMAIN = "phone.kommit.app";
+
+function json(payload: unknown, status: number): Response {
+  return new Response(JSON.stringify(payload), {
+    status,
+    headers: { ...corsHeaders, "Content-Type": "application/json" },
+  });
+}
+
+function emailForPhone(phone: string): string {
+  return `${phone.replace(/\D/g, "")}@${EMAIL_DOMAIN}`;
+}
+
+// deno-lint-ignore no-explicit-any
+async function findUserByEmail(supabase: any, email: string) {
+  let page = 1;
+  const perPage = 200;
+  while (true) {
+    const { data, error } = await supabase.auth.admin.listUsers({
+      page,
+      perPage,
+    });
+    if (error) throw error;
+    // deno-lint-ignore no-explicit-any
+    const found = data.users.find((u: any) => u.email === email);
+    if (found) return found;
+    if (data.users.length < perPage) return null;
+    page++;
+  }
+}
+
+Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
   }
 
   try {
-    const { phone, code, request_id } = await req.json();
+    const body = await req.json();
+    const phone: string | undefined = body.phone;
+    const code: string | undefined = body.code;
+    let requestId: string | undefined = body.request_id;
 
-    if (!phone || !code || !request_id) {
-      return new Response(
-        JSON.stringify({ error: "Telefonnummer, Code und Request-ID sind erforderlich." }),
-        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } },
-      );
+    if (!phone || !code) {
+      return json({ error: "Telefonnummer und Code sind erforderlich." }, 400);
     }
 
     const telegramToken = Deno.env.get("TELEGRAM_GATEWAY_TOKEN");
     if (!telegramToken) {
-      return new Response(
-        JSON.stringify({ error: "Server-Konfigurationsfehler." }),
-        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      return json(
+        { error: "Server-Konfigurationsfehler (Telegram-Token fehlt)." },
+        500,
       );
     }
 
+    const supabase = createClient(
+      Deno.env.get("SUPABASE_URL")!,
+      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
+      { auth: { autoRefreshToken: false, persistSession: false } },
+    );
+
+    // request_id ggf. aus otp_requests nachschlagen (Frontend uebergibt sie nicht)
+    if (!requestId) {
+      const { data: otp } = await supabase
+        .from("otp_requests")
+        .select("request_id")
+        .eq("phone", phone)
+        .maybeSingle();
+      requestId = otp?.request_id;
+    }
+    if (!requestId) {
+      return json(
+        { error: "Kein Code angefordert. Bitte fordere einen neuen Code an." },
+        400,
+      );
+    }
+
+    // Code bei Telegram Gateway pruefen
     const verifyResponse = await fetch(TELEGRAM_VERIFY_URL, {
       method: "POST",
       headers: {
         "Authorization": `Bearer ${telegramToken}`,
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({
-        request_id,
-        code,
-      }),
+      body: JSON.stringify({ request_id: requestId, code }),
     });
-
     const verifyData = await verifyResponse.json();
 
-    if (!verifyData.ok || verifyData.result?.verification_status?.status !== "code_valid") {
-      return new Response(
-        JSON.stringify({ error: "Hm, der Code passt nicht. Nochmal?" }),
-        { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } },
-      );
+    if (
+      !verifyData.ok ||
+      verifyData.result?.verification_status?.status !== "code_valid"
+    ) {
+      return json({ error: "Hm, der Code passt nicht. Nochmal?" }, 401);
     }
 
-    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-    const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-    const supabase = createClient(supabaseUrl, supabaseServiceKey, {
-      auth: { autoRefreshToken: false, persistSession: false },
-    });
+    const email = emailForPhone(phone);
 
-    const { data: existingUsers } = await supabase.auth.admin.listUsers();
-    const existingUser = existingUsers?.users?.find((u) => u.phone === phone);
-
-    let session;
+    // Bestehenden User finden, sonst neu anlegen
+    const existingUser = await findUserByEmail(supabase, email);
     let isNewUser = false;
 
-    if (existingUser) {
-      const { data, error } = await supabase.auth.admin.generateLink({
-        type: "magiclink",
-        email: `${phone.replace(/\+/g, "")}@phone.kommit.app`,
-      });
-      if (error) throw error;
-
-      const tokenHash = new URL(data.properties.action_link).searchParams.get("token");
-      const { data: sessionData, error: verifyError } = await supabase.auth.verifyOtp({
-        token_hash: tokenHash!,
-        type: "email",
-      });
-      if (verifyError) throw verifyError;
-      session = sessionData.session;
-    } else {
+    if (!existingUser) {
       isNewUser = true;
-      const { data, error } = await supabase.auth.admin.createUser({
+      const { error: createErr } = await supabase.auth.admin.createUser({
+        email,
+        email_confirm: true,
         phone,
         phone_confirm: true,
         user_metadata: { first_name: "", last_name: "" },
       });
-      if (error) throw error;
-
-      const { data: linkData, error: linkError } = await supabase.auth.admin.generateLink({
-        type: "magiclink",
-        email: `${phone.replace(/\+/g, "")}@phone.kommit.app`,
-      });
-      if (linkError) throw linkError;
-
-      const tokenHash = new URL(linkData.properties.action_link).searchParams.get("token");
-      const { data: sessionData, error: verifyError } = await supabase.auth.verifyOtp({
-        token_hash: tokenHash!,
-        type: "email",
-      });
-      if (verifyError) throw verifyError;
-      session = sessionData.session;
-
-      void data;
+      if (createErr) throw createErr;
     }
 
-    return new Response(
-      JSON.stringify({ session, is_new_user: isNewUser }),
-      { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+    // Session per Magiclink-Token minten
+    const { data: linkData, error: linkErr } = await supabase.auth.admin
+      .generateLink({ type: "magiclink", email });
+    if (linkErr) throw linkErr;
+
+    const tokenHash = linkData.properties?.hashed_token;
+    if (!tokenHash) throw new Error("Session-Token konnte nicht erzeugt werden.");
+
+    const { data: sessionData, error: verifyErr } = await supabase.auth
+      .verifyOtp({ type: "email", token_hash: tokenHash });
+    if (verifyErr) throw verifyErr;
+
+    // Verbrauchte OTP-Anfrage entfernen
+    await supabase.from("otp_requests").delete().eq("phone", phone);
+
+    return json(
+      { session: sessionData.session, is_new_user: isNewUser },
+      200,
     );
   } catch (error) {
-    return new Response(
-      JSON.stringify({ error: (error as Error).message }),
-      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } },
-    );
+    return json({ error: (error as Error).message }, 500);
   }
 });

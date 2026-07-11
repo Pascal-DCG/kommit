@@ -26,6 +26,7 @@ export function ListingCard({ listing, profile }: ListingCardProps) {
             firstName={profile?.first_name ?? "?"}
             lastName={profile?.last_name ?? ""}
             color={profile?.avatar_color ?? "#ccc"}
+            avatarUrl={profile?.avatar_url}
           />
 
           <div className="min-w-0 flex-1">
