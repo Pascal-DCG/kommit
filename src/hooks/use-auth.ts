@@ -86,16 +86,27 @@ export function useAuth() {
 
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange(async (_event, session) => {
-      if (session?.user) {
-        const profile = await fetchProfile(session.user.id);
-        setState({
+    } = supabase.auth.onAuthStateChange((_event, session) => {
+      // WICHTIG: keine awaitenden supabase-Aufrufe direkt im Callback —
+      // der Auth-Lock wird sonst nicht freigegeben und supabase.from(...)
+      // deadlockt. Session sofort (synchron) setzen, Profil verzoegert laden.
+      const user = session?.user;
+      if (user) {
+        setState((s) => ({
+          ...s,
           session,
-          user: session.user,
-          profile,
+          user,
           loading: false,
-          isNewUser: !profile?.first_name,
-        });
+        }));
+        setTimeout(() => {
+          fetchProfile(user.id).then((profile) => {
+            setState((s) => ({
+              ...s,
+              profile,
+              isNewUser: !profile?.first_name,
+            }));
+          });
+        }, 0);
       } else {
         setState({
           session: null,
