@@ -18,6 +18,25 @@ interface AuthState {
   isNewUser: boolean;
 }
 
+// supabase-js verpackt Edge-Function-Fehler in eine generische Meldung
+// ("Edge Function returned a non-2xx status code"). Der echte Fehlertext
+// steckt im Response-Body von error.context — den holen wir hier raus.
+async function edgeErrorMessage(
+  error: unknown,
+  fallback: string,
+): Promise<string> {
+  const ctx = (error as { context?: Response } | null)?.context;
+  if (ctx && typeof ctx.clone === "function") {
+    try {
+      const body = await ctx.clone().json();
+      if (body?.error) return String(body.error);
+    } catch {
+      // Body ist kein JSON — Fallback auf die generische Meldung
+    }
+  }
+  return (error as Error)?.message || fallback;
+}
+
 export function useAuth() {
   const demo = isDemoMode();
 
@@ -95,7 +114,11 @@ export function useAuth() {
     const { data, error } = await supabase.functions.invoke("send-otp", {
       body: { phone },
     });
-    if (error) throw new Error(error.message);
+    if (error) {
+      throw new Error(
+        await edgeErrorMessage(error, "Code konnte nicht gesendet werden."),
+      );
+    }
     return data as { request_id: string };
   }, []);
 
@@ -104,7 +127,11 @@ export function useAuth() {
       const { data, error } = await supabase.functions.invoke("verify-otp", {
         body: { phone, code, request_id: requestId },
       });
-      if (error) throw new Error(error.message);
+      if (error) {
+        throw new Error(
+          await edgeErrorMessage(error, "Hm, der Code passt nicht. Nochmal?"),
+        );
+      }
 
       if (data.session) {
         await supabase.auth.setSession({
