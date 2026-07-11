@@ -179,6 +179,37 @@ export function useAuth() {
     [state.user, fetchProfile],
   );
 
+  const updateProfile = useCallback(
+    async (updates: {
+      first_name?: string;
+      last_name?: string;
+      show_phone?: boolean;
+      avatar_url?: string | null;
+      avatar_color?: string;
+    }) => {
+      // Optimistisch: lokalen State sofort aktualisieren, damit die UI
+      // (z.B. Toggles) unmittelbar umschaltet.
+      setState((s) =>
+        s.profile ? { ...s, profile: { ...s.profile, ...updates } } : s,
+      );
+
+      if (demo) return; // Demo: nur lokal, keine DB-Schreibung
+
+      if (!state.user) throw new Error("Nicht eingeloggt.");
+      const { error } = await supabase
+        .from("profiles")
+        .update(updates)
+        .eq("id", state.user.id);
+      if (error) {
+        // Rollback der optimistischen Aenderung
+        const profile = await fetchProfile(state.user.id);
+        setState((s) => ({ ...s, profile }));
+        throw error;
+      }
+    },
+    [demo, state.user, fetchProfile],
+  );
+
   const signOut = useCallback(async () => {
     if (demo) {
       disableDemoMode();
@@ -193,6 +224,7 @@ export function useAuth() {
     sendOtp,
     verifyOtp,
     completeProfile,
+    updateProfile,
     signOut,
     isAuthenticated: !!state.session,
   };
