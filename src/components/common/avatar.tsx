@@ -4,6 +4,7 @@ interface AvatarProps {
   firstName: string;
   lastName: string;
   color: string;
+  avatarUrl?: string | null;
   size?: "sm" | "md" | "lg";
   className?: string;
 }
@@ -18,11 +19,27 @@ export function Avatar({
   firstName,
   lastName,
   color,
+  avatarUrl,
   size = "md",
   className,
 }: AvatarProps) {
   const initials =
     `${firstName.charAt(0)}${lastName.charAt(0)}`.toUpperCase() || "?";
+
+  if (avatarUrl) {
+    return (
+      <img
+        src={avatarUrl}
+        alt=""
+        className={cn(
+          "shrink-0 rounded-full object-cover",
+          sizes[size],
+          className,
+        )}
+        style={{ backgroundColor: color }}
+      />
+    );
+  }
 
   return (
     <div

@@ -1,9 +1,10 @@
 import { useState } from "react";
-import { Check, LogOut, Pencil } from "lucide-react";
+import { Camera, Check, LogOut, Pencil } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Avatar } from "@/components/common/avatar";
+import { AvatarPicker } from "@/components/profile/avatar-picker";
 import { formatPhone } from "@/lib/format";
 import type { Profile } from "@/types";
 
@@ -18,6 +19,7 @@ export function ProfileView({ profile, onUpdate, onSignOut }: ProfileViewProps) 
   const [firstName, setFirstName] = useState(profile.first_name);
   const [lastName, setLastName] = useState(profile.last_name);
   const [saving, setSaving] = useState(false);
+  const [pickerOpen, setPickerOpen] = useState(false);
 
   const handleSave = async () => {
     setSaving(true);
@@ -32,12 +34,24 @@ export function ProfileView({ profile, onUpdate, onSignOut }: ProfileViewProps) 
   return (
     <div className="space-y-6">
       <div className="flex flex-col items-center gap-4">
-        <Avatar
-          firstName={profile.first_name}
-          lastName={profile.last_name}
-          color={profile.avatar_color}
-          size="lg"
-        />
+        <button
+          type="button"
+          className="relative"
+          onClick={() => setPickerOpen(true)}
+          title="Profilbild aendern"
+        >
+          <Avatar
+            firstName={profile.first_name}
+            lastName={profile.last_name}
+            color={profile.avatar_color}
+            avatarUrl={profile.avatar_url}
+            size="lg"
+          />
+          <span className="absolute -bottom-1 -right-1 flex h-6 w-6 items-center justify-center rounded-full border-2 border-background bg-primary text-primary-foreground">
+            <Camera className="h-3 w-3" />
+          </span>
+        </button>
+        <AvatarPicker open={pickerOpen} onClose={() => setPickerOpen(false)} />
 
         {editing ? (
           <div className="flex w-full max-w-xs flex-col gap-2">

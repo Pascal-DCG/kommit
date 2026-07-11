@@ -30,6 +30,7 @@ export function Header() {
                 firstName={profile.first_name}
                 lastName={profile.last_name}
                 color={profile.avatar_color}
+                avatarUrl={profile.avatar_url}
                 size="sm"
               />
             </button>
