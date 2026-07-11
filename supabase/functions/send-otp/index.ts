@@ -1,9 +1,13 @@
-import { serve } from "https://deno.land/std@0.208.0/http/server.ts";
-import { corsHeaders } from "../_shared/cors.ts";
+// supabase/functions/send-otp/index.ts
+import { createClient } from "jsr:@supabase/supabase-js@2";
 
-const TELEGRAM_API_URL = "https://gatewayapi.telegram.org/sendVerificationMessage";
+const corsHeaders = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers":
+    "authorization, x-client-info, apikey, content-type",
+};
 
-serve(async (req) => {
+Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
   }
@@ -11,51 +15,72 @@ serve(async (req) => {
   try {
     const { phone } = await req.json();
 
-    if (!phone || typeof phone !== "string") {
+    if (!phone || !/^\+\d{8,15}$/.test(phone)) {
       return new Response(
-        JSON.stringify({ error: "Telefonnummer ist erforderlich." }),
-        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+        JSON.stringify({ error: "Ungueltige Telefonnummer" }),
+        {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        },
       );
     }
 
-    const telegramToken = Deno.env.get("TELEGRAM_GATEWAY_TOKEN");
-    if (!telegramToken) {
-      return new Response(
-        JSON.stringify({ error: "Server-Konfigurationsfehler." }),
-        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } },
-      );
-    }
-
-    const response = await fetch(TELEGRAM_API_URL, {
-      method: "POST",
-      headers: {
-        "Authorization": `Bearer ${telegramToken}`,
-        "Content-Type": "application/json",
+    // Telegram Gateway aufrufen
+    const tgResponse = await fetch(
+      "https://gatewayapi.telegram.org/sendVerificationMessage",
+      {
+        method: "POST",
+        headers: {
+          "Authorization": `Bearer ${Deno.env.get("TELEGRAM_GATEWAY_TOKEN")}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          phone_number: phone,
+          code_length: 6,
+          ttl: 300, // 5 Min gueltig
+        }),
       },
-      body: JSON.stringify({
-        phone_number: phone,
-        code_length: 6,
-        ttl: 300,
-      }),
-    });
+    );
 
-    const data = await response.json();
+    const tgData = await tgResponse.json();
 
-    if (!data.ok) {
+    if (!tgData.ok) {
       return new Response(
-        JSON.stringify({ error: data.error || "Code konnte nicht gesendet werden." }),
-        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+        JSON.stringify({ error: tgData.error || "Telegram-Fehler" }),
+        {
+          status: 502,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        },
       );
     }
 
-    return new Response(
-      JSON.stringify({ request_id: data.result.request_id }),
-      { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+    // request_id temporaer speichern (mit Service-Role-Key, umgeht RLS)
+    const supabase = createClient(
+      Deno.env.get("SUPABASE_URL")!,
+      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
     );
-  } catch (error) {
+
+    await supabase.from("otp_requests").upsert(
+      {
+        phone,
+        request_id: tgData.result.request_id,
+        created_at: new Date().toISOString(),
+      },
+      { onConflict: "phone" },
+    );
+
+    // request_id auch zurueckgeben (verify-otp schlaegt sie sonst selbst nach)
     return new Response(
-      JSON.stringify({ error: (error as Error).message }),
-      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      JSON.stringify({ ok: true, request_id: tgData.result.request_id }),
+      { headers: { ...corsHeaders, "Content-Type": "application/json" } },
+    );
+  } catch (err) {
+    return new Response(
+      JSON.stringify({ error: (err as Error).message }),
+      {
+        status: 500,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      },
     );
   }
 });
