@@ -1,69 +1,68 @@
-import { serve } from "https://deno.land/std@0.208.0/http/server.ts";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
-import { corsHeaders } from "../_shared/cors.ts";
+// supabase/functions/send-push/index.ts
+import webpush from "npm:web-push@3.6.7";
+import { createClient } from "jsr:@supabase/supabase-js@2";
 
-serve(async (req) => {
+const corsHeaders = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers":
+    "authorization, x-client-info, apikey, content-type",
+};
+
+function json(payload: unknown, status: number): Response {
+  return new Response(JSON.stringify(payload), {
+    status,
+    headers: { ...corsHeaders, "Content-Type": "application/json" },
+  });
+}
+
+Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
   }
 
   try {
     const { listing_id } = await req.json();
+    if (!listing_id) return json({ error: "listing_id fehlt" }, 400);
 
-    if (!listing_id) {
-      return new Response(
-        JSON.stringify({ error: "listing_id ist erforderlich." }),
-        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } },
-      );
+    const vapidPublic = Deno.env.get("VAPID_PUBLIC_KEY");
+    const vapidPrivate = Deno.env.get("VAPID_PRIVATE_KEY");
+    const vapidSubject = Deno.env.get("VAPID_SUBJECT") ?? "mailto:admin@kommit.app";
+    if (!vapidPublic || !vapidPrivate) {
+      return json({ error: "VAPID-Schluessel nicht konfiguriert." }, 500);
     }
+    webpush.setVapidDetails(vapidSubject, vapidPublic, vapidPrivate);
 
-    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-    const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-    const vapidPrivateKey = Deno.env.get("VAPID_PRIVATE_KEY");
-    const vapidPublicKey = Deno.env.get("VAPID_PUBLIC_KEY");
+    const supabase = createClient(
+      Deno.env.get("SUPABASE_URL")!,
+      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
+      { auth: { autoRefreshToken: false, persistSession: false } },
+    );
 
-    if (!vapidPrivateKey || !vapidPublicKey) {
-      return new Response(
-        JSON.stringify({ error: "VAPID-Schluessel nicht konfiguriert." }),
-        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } },
-      );
-    }
-
-    const supabase = createClient(supabaseUrl, supabaseServiceKey, {
-      auth: { autoRefreshToken: false, persistSession: false },
-    });
-
-    const { data: matches, error: matchError } = await supabase.rpc(
+    // Passende Gegen-Eintraege finden
+    const { data: matches, error: matchErr } = await supabase.rpc(
       "find_matches",
       { p_listing_id: listing_id },
     );
-
-    if (matchError || !matches || matches.length === 0) {
-      return new Response(
-        JSON.stringify({ sent: 0 }),
-        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
-      );
+    if (matchErr || !matches || matches.length === 0) {
+      return json({ sent: 0 }, 200);
     }
 
     const { data: listing } = await supabase
       .from("listings")
-      .select("origin_label, destination_label, departure_at, type")
+      .select("origin_label, destination_label, type")
       .eq("id", listing_id)
       .single();
 
-    const matchedUserIds = [...new Set(matches.map((m: { user_id: string }) => m.user_id))];
+    const userIds = [
+      ...new Set(matches.map((m: { user_id: string }) => m.user_id)),
+    ];
 
-    const { data: subscriptions } = await supabase
+    const { data: subs } = await supabase
       .from("push_subscriptions")
       .select("*")
-      .in("user_id", matchedUserIds);
+      .in("user_id", userIds);
 
-    if (!subscriptions || subscriptions.length === 0) {
-      return new Response(
-        JSON.stringify({ sent: 0 }),
-        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
-      );
-    }
+    if (!subs || subs.length === 0) return json({ sent: 0 }, 200);
 
     const typeLabel = listing?.type === "angebot" ? "Angebot" : "Anfrage";
     const payload = JSON.stringify({
@@ -74,40 +73,27 @@ serve(async (req) => {
     });
 
     let sent = 0;
-    const errors: string[] = [];
-
-    for (const sub of subscriptions) {
+    for (const s of subs) {
       try {
-        const response = await fetch(sub.endpoint, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "TTL": "86400",
+        await webpush.sendNotification(
+          {
+            endpoint: s.endpoint,
+            keys: { p256dh: s.p256dh_key, auth: s.auth_key },
           },
-          body: payload,
-        });
-
-        if (response.ok) {
-          sent++;
-        } else if (response.status === 410) {
-          await supabase
-            .from("push_subscriptions")
-            .delete()
-            .eq("id", sub.id);
-        }
+          payload,
+        );
+        sent++;
       } catch (err) {
-        errors.push((err as Error).message);
+        // Abgelaufene/ungueltige Subscriptions aufraeumen
+        const status = (err as { statusCode?: number }).statusCode;
+        if (status === 404 || status === 410) {
+          await supabase.from("push_subscriptions").delete().eq("id", s.id);
+        }
       }
     }
 
-    return new Response(
-      JSON.stringify({ sent, total: subscriptions.length, errors }),
-      { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
-    );
+    return json({ sent, total: subs.length }, 200);
   } catch (error) {
-    return new Response(
-      JSON.stringify({ error: (error as Error).message }),
-      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } },
-    );
+    return json({ error: (error as Error).message }, 500);
   }
 });
