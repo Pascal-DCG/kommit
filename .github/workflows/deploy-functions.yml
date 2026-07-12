@@ -1,0 +1,32 @@
+name: Deploy Edge Functions
+
+# Deployt die Supabase Edge Functions automatisch, sobald sich etwas unter
+# supabase/functions/** (oder deren Config) auf main aendert. Zusaetzlich
+# manuell ausloesbar (Actions -> Deploy Edge Functions -> Run workflow).
+on:
+  push:
+    branches: [main]
+    paths:
+      - "supabase/functions/**"
+      - "supabase/config.toml"
+      - ".github/workflows/deploy-functions.yml"
+  workflow_dispatch: {}
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    env:
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+      PROJECT_REF: ljmaeuarmfazvwoohlxk
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: supabase/setup-cli@v1
+        with:
+          version: latest
+
+      - name: Deploy Edge Functions
+        run: |
+          supabase functions deploy send-otp   --project-ref "$PROJECT_REF"
+          supabase functions deploy verify-otp --project-ref "$PROJECT_REF"
+          supabase functions deploy send-push  --project-ref "$PROJECT_REF"
