@@ -7,13 +7,26 @@ const corsHeaders = {
     "authorization, x-client-info, apikey, content-type",
 };
 
+// Normalisiert auf E.164 (+49...) und entfernt die nationale Trunk-0,
+// damit "+490151..." und "+49151..." nicht als zwei Accounts enden.
+function normalizePhoneDE(raw: string): string {
+  let s = (raw ?? "").replace(/[^\d+]/g, "");
+  if (!s) return "";
+  if (s.startsWith("00")) s = "+" + s.slice(2);
+  if (!s.startsWith("+") && s.startsWith("49")) s = "+" + s;
+  if (s.startsWith("0")) s = "+49" + s.slice(1);
+  if (!s.startsWith("+")) s = "+49" + s;
+  return s.replace(/^\+490+/, "+49");
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
   }
 
   try {
-    const { phone } = await req.json();
+    const body = await req.json();
+    const phone = normalizePhoneDE(body.phone);
 
     if (!phone || !/^\+\d{8,15}$/.test(phone)) {
       return new Response(

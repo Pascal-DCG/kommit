@@ -22,6 +22,18 @@ function emailForPhone(phone: string): string {
   return `${phone.replace(/\D/g, "")}@${EMAIL_DOMAIN}`;
 }
 
+// Normalisiert auf E.164 (+49...) und entfernt die nationale Trunk-0, damit
+// dieselbe Nummer immer denselben User/E-Mail-Alias ergibt (keine Duplikate).
+function normalizePhoneDE(raw: string): string {
+  let s = (raw ?? "").replace(/[^\d+]/g, "");
+  if (!s) return "";
+  if (s.startsWith("00")) s = "+" + s.slice(2);
+  if (!s.startsWith("+") && s.startsWith("49")) s = "+" + s;
+  if (s.startsWith("0")) s = "+49" + s.slice(1);
+  if (!s.startsWith("+")) s = "+49" + s;
+  return s.replace(/^\+490+/, "+49");
+}
+
 // deno-lint-ignore no-explicit-any
 async function findUserByEmail(supabase: any, email: string) {
   let page = 1;
@@ -47,7 +59,7 @@ Deno.serve(async (req) => {
 
   try {
     const body = await req.json();
-    const phone: string | undefined = body.phone;
+    const phone = normalizePhoneDE(body.phone ?? "");
     const code: string | undefined = body.code;
     let requestId: string | undefined = body.request_id;
 

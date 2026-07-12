@@ -3,6 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { enableDemoMode } from "@/lib/demo";
+import { normalizePhoneDE, isValidPhoneDE } from "@/lib/phone";
 
 interface LoginFormProps {
   onSendOtp: (phone: string) => Promise<{ request_id: string }>;
@@ -26,7 +27,12 @@ export function LoginForm({ onSendOtp, onVerifyOtp }: LoginFormProps) {
     setLoading(true);
 
     try {
-      const cleanPhone = phone.replace(/\s/g, "");
+      const cleanPhone = normalizePhoneDE(phone);
+      if (!isValidPhoneDE(cleanPhone)) {
+        setError("Bitte gib eine gueltige Handynummer ein, z.B. +49 151 12345678");
+        setLoading(false);
+        return;
+      }
       const result = await onSendOtp(cleanPhone);
       setRequestId(result.request_id);
       setStep("otp");
@@ -49,7 +55,7 @@ export function LoginForm({ onSendOtp, onVerifyOtp }: LoginFormProps) {
     setLoading(true);
 
     try {
-      const cleanPhone = phone.replace(/\s/g, "");
+      const cleanPhone = normalizePhoneDE(phone);
       await onVerifyOtp(cleanPhone, code, requestId);
     } catch (err) {
       setError((err as Error).message || "Hm, der Code passt nicht. Nochmal?");
@@ -80,10 +86,15 @@ export function LoginForm({ onSendOtp, onVerifyOtp }: LoginFormProps) {
               type="tel"
               value={phone}
               onChange={(e) => setPhone(e.target.value)}
-              placeholder="+49 170 1234567"
+              placeholder="+49 151 12345678"
               autoComplete="tel"
               required
             />
+            <div className="rounded-lg bg-muted/60 px-3 py-2 text-xs text-muted-foreground">
+              Format: <span className="font-medium text-foreground">+49 151 12345678</span> —
+              also mit Laendervorwahl, aber <span className="font-medium text-foreground">ohne die 0</span>{" "}
+              nach der +49 (nicht +49&nbsp;0151…).
+            </div>
             <p className="text-xs text-muted-foreground">
               Wir schicken dir den Code via Telegram.
             </p>
